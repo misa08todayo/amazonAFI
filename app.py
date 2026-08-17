@@ -4,7 +4,21 @@ import google.generativeai as genai
 # APIキーの設定
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
-def generate_article(asin_a, obs_a, unconf_a, asin_b, obs_b, unconf_b):
+# 利用可能なモデルを自動取得する関数
+@st.cache_data
+def get_available_models():
+    try:
+        available_models = []
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                # 'models/gemini-1.5-flash' などのプレフィックスを除去してモデル名を取得
+                model_name = m.name.replace('models/', '')
+                available_models.append(model_name)
+        return available_models
+    except Exception:
+        return []
+
+def generate_article(model_name, asin_a, obs_a, unconf_a, asin_b, obs_b, unconf_b):
     official_info_a = f"商品A（ASIN: {asin_a}）の公式情報"
     official_info_b = f"商品B（ASIN: {asin_b}）の公式情報"
 
@@ -45,14 +59,24 @@ def generate_article(asin_a, obs_a, unconf_a, asin_b, obs_b, unconf_b):
     最後に、事実確認が必要な文章と、記事に書かなかった未確認情報を一覧にしてください。
     """
 
-    # モデルの呼び出し（安定版）
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    model = genai.GenerativeModel(model_name)
     response = model.generate_content(prompt)
     return response.text
 
 # --- UI構築 ---
 st.set_page_config(page_title="商品比較記事ジェネレーター", layout="wide")
 st.title("🛍️ 商品比較記事ジェネレーター")
+
+# 利用可能なモデルの一覧を取得
+available_models = get_available_models()
+
+# サイドバーでモデルを選択できるようにする（自動検出された最初のモデルをデフォルト設定）
+if available_models:
+    selected_model = st.sidebar.selectbox("使用するGeminiモデル", available_models)
+else:
+    # 万が一自動取得に失敗した場合のバックアップ指定
+    selected_model = "gemini-1.5-flash-latest"
+    st.sidebar.warning("モデル一覧の取得に失敗したため、デフォルト指定で実行します。")
 
 col1, col2 = st.columns(2)
 
@@ -74,9 +98,10 @@ if st.button("記事を生成する", type="primary", use_container_width=True):
     if not asin_a or not asin_b:
         st.error("ASINを入力してください。")
     else:
-        with st.spinner("Geminiが記事を執筆しています..."):
+        with st.spinner(f"Gemini ({selected_model}) が記事を執筆しています..."):
             try:
                 result_markdown = generate_article(
+                    selected_model,
                     asin_a, obs_a, unconf_a, 
                     asin_b, obs_b, unconf_b
                 )
