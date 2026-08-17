@@ -1,20 +1,13 @@
 import streamlit as st
-from google import genai
+import google.generativeai as genai
 
-# Geminiクライアントの初期化（secrets.tomlから自動でキーを読み込みます）
-# ※エラーが出る場合は、genai.Client(api_key=st.secrets["GEMINI_API_KEY"])としてください
-client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
+# APIキーの設定
+genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
 def generate_article(asin_a, obs_a, unconf_a, asin_b, obs_b, unconf_b):
-    # ---------------------------------------------------------
-    # 【将来の拡張】
-    # ここでASINを使ってサードパーティAPI等を叩き、実際の商品名や公式情報を取得します。
-    # 今回は一時的なダミーデータとして設定しておきます。
-    # ---------------------------------------------------------
-    official_info_a = f"商品A（ASIN: {asin_a}）の公式情報ダミー"
-    official_info_b = f"商品B（ASIN: {asin_b}）の公式情報ダミー"
+    official_info_a = f"商品A（ASIN: {asin_a}）の公式情報"
+    official_info_b = f"商品B（ASIN: {asin_b}）の公式情報"
 
-    # AIに渡す指示書（最初のプロンプトをそのまま活用）
     prompt = f"""
     あなたは商品比較記事の編集者です。
     以下の資料だけを使い、商品Aと商品Bの比較記事を作ってください。
@@ -52,14 +45,12 @@ def generate_article(asin_a, obs_a, unconf_a, asin_b, obs_b, unconf_b):
     最後に、事実確認が必要な文章と、記事に書かなかった未確認情報を一覧にしてください。
     """
 
-    # Gemini 1.5 Flashモデルを使って生成
-    response = client.models.generate_content(
-        model='gemini-1.5-flash',
-        contents=prompt,
-    )
+    # モデルの呼び出し（安定版）
+    model = genai.GenerativeModel("gemini-1.5-flash")
+    response = model.generate_content(prompt)
     return response.text
 
-# --- ここからUIの構築 ---
+# --- UI構築 ---
 st.set_page_config(page_title="商品比較記事ジェネレーター", layout="wide")
 st.title("🛍️ 商品比較記事ジェネレーター")
 
@@ -85,7 +76,6 @@ if st.button("記事を生成する", type="primary", use_container_width=True):
     else:
         with st.spinner("Geminiが記事を執筆しています..."):
             try:
-                # 関数を呼び出してAIに記事を作らせる
                 result_markdown = generate_article(
                     asin_a, obs_a, unconf_a, 
                     asin_b, obs_b, unconf_b
